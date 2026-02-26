@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard | QR Dynamic</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #0F172A; color: #F8FAFC; }
+        .card { background-color: #1E293B; border: 1px solid #334155; border-radius: 0.75rem; }
+        .input-dark { background-color: #0F172A; border: 1px solid #334155; color: #F8FAFC; transition: border-color 0.2s; }
+        .input-dark:focus { outline: none; border-color: #F97316; }
+        .badge-green { color: #4ADE80; }
+        .badge-red { color: #F87171; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+    <!-- Top Nav -->
+    <nav class="border-b border-slate-800 bg-[#0F172A] px-6 py-4">
+        <div class="max-w-7xl mx-auto flex justify-between items-center">
+            <div class="flex items-center gap-2 text-[#F97316] font-bold text-lg">
+                <i class="ph-fill ph-qr-code text-2xl"></i>
+                QR Dynamic
+            </div>
+            <div class="flex items-center gap-6 text-sm text-slate-300">
+                <div class="flex items-center gap-2">
+                    <i class="ph ph-user"></i> Meu QR Code
+                </div>
+                <button onclick="logout()" class="flex items-center gap-2 text-red-400 hover:text-red-300 transition">
+                    <i class="ph ph-sign-out"></i> Sair
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <main class="flex-1 max-w-4xl mx-auto w-full p-6 mt-8">
+        <div id="loading" class="text-center py-20">
+            <i class="ph ph-spinner animate-spin text-4xl text-[#F97316] mb-4"></i>
+            <p class="text-slate-400">Carregando seu painel...</p>
+        </div>
+
+        <div id="dashboard-content" class="hidden space-y-8">
+            <!-- Header -->
+            <div class="text-center mb-10">
+                <h1 class="text-3xl font-bold text-white mb-2">Meu QR Code Dinâmico</h1>
+                <p class="text-slate-400">Gerencie o link de redirecionamento do seu QR code</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- QR Code Card -->
+                <div class="card p-6 flex flex-col items-center">
+                    <div class="w-full flex items-center gap-2 text-sm font-medium text-slate-300 mb-6">
+                        <i class="ph ph-qr-code text-[#F97316]"></i> Seu QR Code
+                    </div>
+                    
+                    <div class="bg-white p-4 rounded-xl mb-6">
+                        <canvas id="qr-canvas" class="w-48 h-48"></canvas>
+                    </div>
+
+                    <div class="w-full bg-[#0F172A] rounded-lg p-4 text-center border border-slate-700">
+                        <div class="text-xs text-slate-400 mb-1">Código Único:</div>
+                        <div class="font-mono font-bold text-[#F97316] text-lg tracking-widest" id="qr-code-display">-----</div>
+                    </div>
+                </div>
+
+                <!-- Stats Card -->
+                <div class="card p-6 flex flex-col">
+                    <div class="w-full flex items-center gap-2 text-sm font-medium text-slate-300 mb-6">
+                        <i class="ph ph-trend-up text-[#F97316]"></i> Estatísticas
+                    </div>
+
+                    <div class="bg-[#0F172A] rounded-lg p-5 border border-slate-700 flex justify-between items-center mb-4">
+                        <span class="text-slate-400 text-sm">Total de Scans</span>
+                        <span class="text-2xl font-bold text-[#F97316]" id="scan-count">0</span>
+                    </div>
+
+                    <div class="bg-[#0F172A] rounded-lg p-5 border border-slate-700 flex justify-between items-center">
+                        <span class="text-slate-400 text-sm">Status</span>
+                        <div id="status-badge" class="flex items-center gap-1 text-sm font-medium badge-green">
+                            <i class="ph ph-check-circle"></i> Ativo
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Configuration Card -->
+            <div class="card p-6">
+                <div class="w-full flex items-center gap-2 text-sm font-medium text-slate-300 mb-6">
+                    <i class="ph ph-link text-[#F97316]"></i> Configurar URL de Redirecionamento
+                </div>
+
+                <form id="url-form" class="space-y-4">
+                    <div>
+                        <label class="block text-sm text-slate-400 mb-2">URL de Destino</label>
+                        <input type="url" id="target-url" required class="input-dark w-full rounded-lg px-4 py-3 text-sm" placeholder="https://seusite.com.br">
+                    </div>
+                    
+                    <div id="current-url-display" class="hidden bg-[#0F172A] border border-slate-700 rounded-lg p-3 text-sm">
+                        <span class="text-slate-400">URL atual:</span> 
+                        <a href="#" id="current-url-link" target="_blank" class="text-[#F97316] hover:underline ml-1 truncate inline-block align-bottom max-w-[80%]"></a>
+                    </div>
+
+                    <button type="submit" id="btn-save" class="w-full bg-[#F97316] hover:bg-[#EA580C] text-white rounded-lg py-3 font-semibold transition mt-2">
+                        Salvar URL
+                    </button>
+                    <p id="save-msg" class="text-sm text-center hidden mt-2"></p>
+                </form>
+            </div>
+        </div>
+    </main>
+
+    <script src="/app.js"></script>
+    <script>
+        let currentQrId = null;
+
+        async function initDashboard() {
+            const user = await getCurrentUser();
+            if (!user) {
+                window.location.href = '/index.html';
+                return;
+            }
+
+            if (user.profile?.role === 'admin') {
+                window.location.href = '/admin.html';
+                return;
+            }
+
+            const { data: codes, error } = await window.supabaseClient
+                .from('qrcodes')
+                .select('*')
+                .eq('owner_id', user.id);
+
+            document.getElementById('loading').classList.add('hidden');
+
+            if (!codes || codes.length === 0) {
+                window.location.href = '/index.html';
+            } else {
+                const qr = codes[0];
+                currentQrId = qr.id;
+                
+                document.getElementById('dashboard-content').classList.remove('hidden');
+                document.getElementById('qr-code-display').textContent = qr.code;
+                document.getElementById('scan-count').textContent = qr.scan_count || 0;
+                
+                if (qr.target_url) {
+                    document.getElementById('target-url').value = qr.target_url;
+                    document.getElementById('current-url-display').classList.remove('hidden');
+                    document.getElementById('current-url-link').href = qr.target_url;
+                    document.getElementById('current-url-link').textContent = qr.target_url;
+                }
+                
+                updateStatusUI(qr.status);
+
+                const shareUrl = `${window.location.origin}/ativar/${qr.code}`;
+                
+                // Generate actual QR Code image
+                QRCode.toCanvas(document.getElementById('qr-canvas'), shareUrl, {
+                    width: 192,
+                    margin: 1,
+                    color: {
+                        dark: '#000000',
+                        light: '#ffffff'
+                    }
+                }, function (error) {
+                    if (error) console.error(error);
+                });
+            }
+        }
+
+        function updateStatusUI(status) {
+            const badge = document.getElementById('status-badge');
+            if (status === 'ativo') {
+                badge.className = 'flex items-center gap-1 text-sm font-medium badge-green';
+                badge.innerHTML = '<i class="ph ph-check-circle"></i> Ativo';
+            } else {
+                badge.className = 'flex items-center gap-1 text-sm font-medium text-slate-400';
+                badge.innerHTML = '<i class="ph ph-minus-circle"></i> Inativo';
+            }
+        }
+
+        document.getElementById('url-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const url = document.getElementById('target-url').value;
+            const btn = document.getElementById('btn-save');
+            const msgEl = document.getElementById('save-msg');
+            
+            btn.disabled = true;
+            btn.textContent = "Salvando...";
+            msgEl.classList.add('hidden');
+
+            const { error } = await window.supabaseClient
+                .from('qrcodes')
+                .update({ target_url: url, status: 'ativo' })
+                .eq('id', currentQrId);
+
+            btn.disabled = false;
+            btn.textContent = "Salvar URL";
+
+            if (error) {
+                msgEl.textContent = "Erro ao salvar: " + error.message;
+                msgEl.className = "text-sm text-center mt-2 text-red-400";
+            } else {
+                msgEl.textContent = "URL salva com sucesso!";
+                msgEl.className = "text-sm text-center mt-2 text-green-400";
+                updateStatusUI('ativo');
+                
+                document.getElementById('current-url-display').classList.remove('hidden');
+                document.getElementById('current-url-link').href = url;
+                document.getElementById('current-url-link').textContent = url;
+            }
+            msgEl.classList.remove('hidden');
+        });
+
+        initDashboard();
+    </script>
+</body>
+</html>
